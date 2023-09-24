@@ -1,0 +1,19 @@
+services:
+  restic-ui:
+    build: 
+      context: .
+    container_name: restic-ui
+    ports:
+      - "5000:5000" 
+    environment:
+      - RESTIC_REPOSITORY=/backup
+    env_file:
+      - restic.env
+    volumes:
+      - /mnt/backup:/backup 
+      - intermediate-backup:/intermediatebackup
+      - /var/run/docker.sock:/var/run/docker.sock
+
+
+volumes:
+  intermediate-backup:

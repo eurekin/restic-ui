@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Restic Backup UI</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
+    
+</head>
+<body>
+    <div class="container mt-5">
+        <div class='container'>
+            {% include 'includes/_messages.html' %}
+            {% block body %}{% endblock %}
+        </div>
+        
+        <h1>Restic Backup UI</h1>
+        
+        {% if error %}
+        <div class="alert alert-danger">
+            <strong>Error!</strong> {{ error }}
+        </div>
+        {% endif %}
+        
+        {% if not is_initialized %}
+        <form method="post" action="{{ url_for('initialize') }}" class="mb-3">
+            <button type="submit" class="btn btn-warning" onclick="showLoading()">Initialize Repository</button>
+        </form>
+        {% endif %}
+        
+        <div class="loading" style="display:none;">
+            <div class="alert alert-info">
+                <strong>Loading...</strong> Please wait.
+            </div>
+        </div>
+        
+        <ul class="nav nav-tabs mb-3" id="myTab" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active" id="volumes-tab" data-toggle="tab" href="#volumes" role="tab"
+                aria-controls="volumes" aria-selected="false">Volumes</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="snapshots-tab" data-toggle="tab" href="#snapshots" role="tab"
+                aria-controls="snapshots" aria-selected="true">Snapshots</a>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="myTabContent">
+            <div class="tab-pane fade" id="snapshots" role="tabpanel" aria-labelledby="snapshots-tab">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Snapshot ID</th>
+                            <th scope="col">Hostname</th>
+                            <th scope="col">Path</th>
+                            <th scope="col">Time</th>
+                            <th scope="col">Restore</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for snapshot in snapshots %}
+                        <tr>
+                            <td>{{ snapshot.short_id }}</td>
+                            <td>{{ snapshot.hostname }}</td><td>
+                                {% if snapshot.tags %}
+                                {% for tag in snapshot.tags %}
+                                {% if tag.startswith('volume=') %}
+                                {{ tag.split('=')[1] }}
+                                {% endif %}
+                                {% endfor %}
+                                {% endif %}
+                            </td>                            
+                            <td><span class="date">{{ snapshot.time }}</span></td>
+                            <td>
+                                <form method="post" action="{{ url_for('restore') }}">
+                                    <input type="hidden" name="snapshot_id" value="{{ snapshot.id }}">
+                                    <button type="submit" class="btn btn-primary btn-sm">Restore</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            
+            <div class="tab-pane fade show active" id="volumes" role="tabpanel" aria-labelledby="volumes-tab">
+                {% for container, volumes in container_volumes.items() %}
+                <div class="mb-4">
+                    <h3>{{ container }}</h3>
+                    <ul>
+                        {% for volume in volumes %}
+                        <li>
+                            {{ volume.Source }} -> {{ volume.Destination}}
+                            <form method="post" action="{{ url_for('backup_volume') }}" style="display:inline-block;">
+                                <input type="hidden" name="volume" value="{{ volume.Source }}">
+                                <input type="hidden" name="container_name" value="{{ container }}">
+                                <input type="hidden" name="destination" value="{{ volume.Destination }}">
+                                <button type="submit" class="btn btn-primary">Backup Volume</button>
+                            </form>
+                            
+                            {% set last_snapshot_date = 'N/A' %}
+                            {% if volume.latest_snapshot %}
+                            {% set last_snapshot_date = volume.latest_snapshot.time %}
+                            {% endif %}
+                            <span>Last Snapshot: <span class="date">{{ last_snapshot_date }}</span></span>
+                            
+                            {% if last_snapshot_date != 'N/A' %}
+                            <form method="post" action="{{ url_for('restore_volume') }}" style="display:inline-block;">
+                                <input type="hidden" name="volume" value="{{ volume.Source }}">
+                                <input type="hidden" name="container_name" value="{{ container }}">
+                                <button type="submit" class="btn btn-success">Restore</button>
+                            </form>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endfor %}
+            </div>
+            
+            
+            
+        </div>
+    </div>
+    
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+    
+    <script>
+        function showLoading() {
+            $('.loading').show();
+        }
+        
+        function confirmAction() {
+            return confirm('Are you sure you want to perform this action?');
+        }
+        
+        $('form').submit(function () {
+            return confirmAction();
+        });
+        
+        function formatDate(dateString) {
+            if (dateString === "N/A") return dateString; // pass through if the date is "N/A"
+            
+            const date = new Date(dateString);
+            if (isNaN(date)) return dateString; // pass through if the date is invalid
+            
+            const options = {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            };
+            return date.toLocaleString('default', options);
+        }
+        
+        
+        
+        document.querySelectorAll('.date').forEach(dateElement => {
+            dateElement.textContent = formatDate(dateElement.textContent);
+        }); 
+    </script>
+</body>
+</html>

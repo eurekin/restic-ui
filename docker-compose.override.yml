@@ -1,0 +1,13 @@
+version: '3'
+services:
+  restic-ui:
+    volumes:
+      - ./app:/app
+    environment:
+      - FLASK_ENV=development
+      - DEBUG_APP=wait_for_client
+      - FLASK_DEBUG=1
+    command: python -m debugpy --wait-for-client --listen 0.0.0.0:5678 -m flask run --host=0.0.0.0
+    ports:
+      - "5000:5000"
+      - "5678:5678"
