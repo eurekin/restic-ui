@@ -4,9 +4,7 @@ import os
 import json
 import docker
 import logging
-from datetime import datetime
-import debugpy
- 
+from datetime import datetime 
 
 # Create a logger
 logger = logging.getLogger()
@@ -79,7 +77,7 @@ def index():
 
                 container_volumes[container.name].append(volume_info)
 
-    logging.info(f"container_volumes: {container_volumes}")
+    # logging.info(f"container_volumes: {container_volumes}")
     return render_template(
         'index.html',
         snapshots=snapshots,
@@ -123,62 +121,37 @@ def backup_volume():
     destination = request.form.get('destination')  # Path inside the container where the volume is mounted
     container_name = request.form.get('container_name')  # Name of the container
     
-    # Define the path to the shared intermediate backup volume inside the restic-ui container
-    intermediate_backup_path = '/intermediatebackup'
-    tar_file_path = os.path.join(intermediate_backup_path, f"{container_name}{destination}", 'backup.tar')
-
     # Create a tag with the container name and volume name.
     tag = f"container={container_name},volume={destination}"
 
-    
     logging.info(f"tag: {tag}")
     logging.info(f"volume: {volume}")
     logging.info(f"destination: {destination}")
     logging.info(f"container_name: {container_name}") 
 
-
-    
     try:
 
         # ensure dirs exist
         backup_dir = f"/backup/{container_name}{destination}"
-
-        cmd = [
-            'docker', 'run', '--rm',
-            '--volumes-from', container_name,
-            '-v', 'restic-ui_intermediate-backup:/backup',
-            'ubuntu', 'mkdir', '-p', backup_dir
-        ]
-        # Run the command to create the tar file
-        logging.info(f"Running command: {' '.join(cmd)}")
-        subprocess.check_call(cmd)
-
-        # Construct the command to create a tar file of the volume in the intermediate backup volume
-        cmd = [
-            'docker', 'run', '--rm',
-            '--volumes-from', container_name,
-            '-v', 'restic-ui_intermediate-backup:/backup',
-            '-w', backup_dir,
-            'ubuntu', 'tar', 'cvf', 'backup.tar', destination
-        ]
-        # Run the command to create the tar file
-        logging.info(f"Running command: {' '.join(cmd)}")
-        subprocess.check_call(cmd)
         
-
-        # Define the Restic backup command
         backup_cmd = [
-            'restic', 'backup', tar_file_path, 
+            'docker', 'run', '--rm',
+            '--name', 'restic_temporary_backup_container', # TODO at the start, check if not already running
+            '--volumes-from', container_name,
+            '-e', 'RESTIC_PASSWORD',
+            '-e', 'RESTIC_REPOSITORY',
+            '--volumes-from', 'restic-ui', # must match this container, defined in the compose file (TODO consider some ENV VAR)
+            '-v', '/mnt/backup:/backup', # host volumes are always referring to the top-level, real host
+            'restic/restic', 'backup',  destination,
             '--tag', tag,  # Add the tag to the snapshot
             '--host', container_name
-            ]
-        
-        logging.info(f"Running Restic backup command: {' '.join(backup_cmd)}")
-        subprocess.check_call(backup_cmd)
-        
-        # After the successful backup, remove the tar file from the intermediate backup volume
-        os.remove(tar_file_path)
-        
+        ]
+
+        logging.info(f"Running Restic backup command: {' '.join(backup_cmd)}") 
+        result = subprocess.run(backup_cmd, check=True, text=True, capture_output=True)
+        logging.info(f"Standard Output: {result.stdout}")
+        logging.info(f"Standard Error: {result.stderr}")
+
         flash("Volume successfully backed up with Restic", "success")
     except subprocess.CalledProcessError as e:
         flash(f"Error during the backup process: {e.output}", "danger")
@@ -196,13 +169,33 @@ def restore_volume():
     # Retrieve the form data
     volume = request.form.get('volume')  # Source of the volume on the host
     container_name = request.form.get('container_name')  # Name of the container
+    destination = request.form.get('destination')  # Path inside the container where the volume is mounted
+    logging.info(f"destination: {destination}")
     logging.info(f"volume: {volume}") 
     logging.info(f"container_name: {container_name}") 
 
     try:
         # Implement the logic to restore volume here
         # Use the tags to find the appropriate snapshot and restore it
-        flash("Volume successfully restored", "success")
+        restore_cmd = [
+                'docker', 'run', '--rm',
+                '--name', 'restic_temporary_backup_container', # TODO at the start, check if not already running
+                '--volumes-from', container_name,
+                '-e', 'RESTIC_PASSWORD',
+                '-e', 'RESTIC_REPOSITORY',
+                '--volumes-from', 'restic-ui', # must match this container, defined in the compose file (TODO consider some ENV VAR)
+                '-v', '/mnt/backup:/backup',   # host volumes are always referring to the top-level, real host
+                'restic/restic', 
+                'restore', 'latest', # todo: extend UI to allow for other backups
+                '--target',  destination, 
+                '--host', container_name
+            ]
+            
+        logging.info(f"Running Restic restore command: {' '.join(restore_cmd)}") 
+        result = subprocess.run(restore_cmd, check=True, text=True, capture_output=True)
+        logging.info(f"Standard Output: {result.stdout}")
+        logging.info(f"Standard Error: {result.stderr}")
+        flash("Volume successfully restored. "f"Standard Output: {result.stdout}", "success")
         
     except Exception as e:
         logging.error(f"Unexpected error during restore: {str(e)}", exc_info=True)
@@ -214,10 +207,3 @@ def restore_volume():
 if __name__ == '__main__':
 
     app.run(host='0.0.0.0', port=5000, debug=True)
-
-
-
-
-
-
- 

@@ -108,6 +108,7 @@
                             <form method="post" action="{{ url_for('restore_volume') }}" style="display:inline-block;">
                                 <input type="hidden" name="volume" value="{{ volume.Source }}">
                                 <input type="hidden" name="container_name" value="{{ container }}">
+                                <input type="hidden" name="destination" value="{{ volume.Destination }}">
                                 <button type="submit" class="btn btn-success">Restore</button>
                             </form>
                             {% endif %}
@@ -145,7 +146,7 @@
             
             const date = new Date(dateString);
             if (isNaN(date)) return dateString; // pass through if the date is invalid
-            
+
             const options = {
                 year: 'numeric',
                 month: 'short',
