@@ -2,6 +2,14 @@
 
 A user-friendly web interface for [Restic](https://restic.net/), a fast, secure, multi-platform backup program. It provides easy management of Restic repositories, allowing users to create, backup, and restore snapshots of Docker volumes.
 
+Restic-UI was developed to address a seemingly straightforward problem: the efficient backup and restoration of Docker volumes. Most of the prevalent recommendations appeared to be surprisingly constraining! For instance, some suggestions included using host-mounted volumes in lieu of named volumes and then configuring backups on the server side. However, named volumes are generally better managed by Docker (avoiding user ID issues and offering faster performance); compromising on this seemed unnecessary. The official Docker documentation proposes the use of a temporary Ubuntu Docker container. It suggests leveraging the `--volumes-from` option to mount volumes and running `tar` on them. However, this approach lacked robustness; it didn't offer scheduling, pruning, deduplication, or automation.
+
+Another method, highlighted by Docker documents, is to export the entire container as a `.tar` file. However, I was reluctant to adopt this approach as most container data can be readily recreated during Docker image builds or by simply pulling from the Docker repository. I aimed to backup only the indispensable data and avoid unnecessary redundancies. The Docker Desktop plugin offers a solution for backing up volumes, but it is not available on servers without Docker Desktop. 
+
+Even comprehensive Docker management tools like Portainer lack backup/restore functionality, despite ongoing requests from users for several years. Restic emerged as a robust and thoroughly tested solution for backups but inherently has no knowledge of Docker volumes. This project, Restic-UI, was initiated to bridge this gap. It interprets a list of containers and their volumes and conveys the data to Restic in a manner that leverages Restic's optimal features. Essentially, it generates temporary containers with volumes "borrowed" from your existing containers and executes Restic on them. Special metadata (tags) are incorporated to facilitate the future matching of containers to backups.
+
+Currently, Restic-UI is in its nascent stages of development, and its capabilities are primarily limited to backing up data.
+
 ![Restic UI backup](doc/restic_volumes.png)
 
 ## Features
